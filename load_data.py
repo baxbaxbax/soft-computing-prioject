@@ -1,7 +1,8 @@
-import os
+import glob
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
+from PIL import Image
 
 FOLDER_PATH = "CADDY_gestures_complete_v2_release"
 ROIS_PATH = "hands-ROIs"
@@ -27,7 +28,11 @@ def resize(image):
 
 
 def extract_roi(img, coords):
-    return img[coords[0]: coords[0] + coords[2], coords[1]: coords[1] + coords[3]]
+    retVal = img[coords[0]: coords[0] + coords[2], coords[1]: coords[1] + coords[3]]
+    if retVal is None:
+        return "continue"
+    else:
+        return retVal
 
 
 def get_array(param):
@@ -98,6 +103,19 @@ def load_positive_csv():
     return signs, labels, neg_signs, images
 
 
+NEG_VALUES_PATH = "generated_true_negatives"
+USUAL_ERRORS_PATH = "usual_errors"
+
+
+def load_additional_data(negative_signs, negative_labels):
+    for filename in glob.glob(NEG_VALUES_PATH + '/*.png'):
+        im = cv2.imread(filename, 0)
+        negative_signs.append(resize(im))
+        negative_labels.append(-1)
+
+
+def load_usual_errors(errors, labels):
+    for filename in glob.glob(USUAL_ERRORS_PATH + '/*.png'):
 def load_negative_csv(neg_rois):
     neg_signs = []
     labels = []
@@ -109,7 +127,7 @@ def load_negative_csv(neg_rois):
         for line in lines[1:]:
             cols = line.replace("\n", "").split(",")
             if "raw" in cols[2]:
-                if cols[1] == "biograd-A" or cols[1] == "biograd-B":
+                if cols[1] == "brodarski-C" or cols[1] == "brodarski-D":
                     try:
                         img_left = load_img(FOLDER_PATH + cols[2])
                         img_right = load_img(FOLDER_PATH + cols[3])
@@ -118,6 +136,7 @@ def load_negative_csv(neg_rois):
                         neg_signs.append(resize(extract_roi(img_right, neg_rois[index])))
                         labels.append(cols[5])
                         labels.append(cols[5])
+                        # labels.append(cols[6])
 
                         # images.append(img_left)
                         # images.append(img_right)
