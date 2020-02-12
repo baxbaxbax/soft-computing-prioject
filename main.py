@@ -5,6 +5,32 @@ import train_hog
 from PIL import Image
 
 
+font = cv2.FONT_HERSHEY_SIMPLEX
+
+
+def label(str):
+    operation = int(str)
+    switcher = {
+        0: 'start_comm',
+        1: 'end_comm',
+        2: 'up',
+        3: 'down',
+        4: 'photo',
+        5: 'backwards',
+        6: 'carry',
+        7: 'boat',
+        8: 'here',
+        9: 'mosaic',
+        10: 'num_delimiter',
+        11: 'one',
+        12: 'two',
+        13: 'three',
+        14: 'four',
+        15: 'five'
+    }
+    return switcher.get(operation)
+
+
 def generate_data(rectangles):
     for (x, y, w, h) in rectangles:
         img = image.copy()
