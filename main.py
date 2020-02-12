@@ -37,17 +37,9 @@ def generate_data(rectangles):
         image2d = np.array(ld.extract_roi(img, [x, y, w, h]))
         if image2d.shape[0] == 0 or image2d.shape[1] == 0:
             continue
+        image2d = ld.resize(image2d)
         im = Image.fromarray(image2d)
         im.save("generated_false_signs/sign" + str(index) + ".png")
-        # scipy.misc.imsave("generated_false_signs/sign" + str(index) + ".png", image2d)
-        # png.from_array(image2d, mode='L').save("generated_false_signs/sign" + str(index) + ".png")
-
-def crop_image(input_image, output_image, start_x, start_y, width, height):
-    """Pass input name image, output name image, x coordinate to start croping, y coordinate to start croping, width to crop, height to crop """
-    input_img = Image.open(input_image)
-    box = (start_x, start_y, start_x + width, start_y + height)
-    output_img = input_img.crop(box)
-    output_img.save(output_image +".png")
 
 
 def non_max_suppression_fast(boxes, overlapThresh):
@@ -108,8 +100,18 @@ for index, image in enumerate(images):
     (rects, weights) = hog.detectMultiScale(image)
     rects = non_max_suppression_fast(rects, 0.3)
 
+    # if index > 1000:
+    #     generate_data(rects)
+
     # draw the original bounding boxes
     for (x, y, w, h) in rects:
         cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 4)
+        img = image.copy()
+        image2d = ld.resize(np.array(ld.extract_roi(img, [x, y, w, h])))
+        if image2d == []:
+            continue
+        data = hog.compute(image2d)
+        data_tr = data.transpose()
+        cv2.putText(image, label(svm_signs.predict(data_tr)), (x, y - 5), font, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
 
-    ld.preview_img(image)
+        ld.preview_img(image)
