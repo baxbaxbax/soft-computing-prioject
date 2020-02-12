@@ -2,6 +2,7 @@ import glob
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
+import os
 from PIL import Image
 
 FOLDER_PATH = "CADDY_gestures_complete_v2_release"
@@ -24,13 +25,16 @@ def preview_img(image):
 
 
 def resize(image):
+    img = np.array(image)
+    if img.shape[0] == 0 or img.shape[1] == 0:
+        return []
     return cv2.resize(image, (64, 64))
 
 
 def extract_roi(img, coords):
     retVal = img[coords[0]: coords[0] + coords[2], coords[1]: coords[1] + coords[3]]
     if retVal is None:
-        return "continue"
+        return []
     else:
         return retVal
 
@@ -70,27 +74,36 @@ def load_positive_csv():
             cols = line.replace("\n", "").split(",")
             if "raw" in cols[2]:
                 if cols[1] == "biograd-A" or cols[1] == "biograd-B":
-                    try:
-                        img_left = load_img(FOLDER_PATH + cols[2])
+                    img_left = load_img(FOLDER_PATH + cols[2])
+                    if os.path.exists(ROIS_PATH + cols[2]):
                         roi_left = load_img(ROIS_PATH + cols[2])
-                        # img_right = load_img(FOLDER_PATH + cols[3])
-                        roi_right = load_img(ROIS_PATH + cols[3])
+                    # img_right = load_img(FOLDER_PATH + cols[3])
+                    # roi_right = load_img(ROIS_PATH + cols[3])
                         signs.append(resize(roi_left))
-                        signs.append(resize(roi_right))
+                    # signs.append(resize(roi_right))
                         labels.append(cols[5])
-                        labels.append(cols[5])
-                        images.append(img_left)
-                        # images.append(img_right)
+                    # labels.append(cols[5])
+                    images.append(img_left)
+                    # images.append(img_right)
 
+                    if cols[6] != "":
                         neg_signs.append(get_array(cols[6:10]))
-                        if cols[5] == 9 or cols[4] == "mosaic":
+                    else:
+                        neg_signs.append(get_array(cols[7:11]))
+
+                    if cols[10] == "":
+                        continue
+                    if cols[5] == 9 or cols[4] == "mosaic":
+                        if cols[6] != "":
                             neg = get_array(cols[9:13])
                         else:
+                            new = get_array(cols[7:11])
+                    else:
+                        if cols[11] != "0":
                             neg = get_array(cols[10:14])
-                        neg_signs.append(neg)
-                    except:
-                        raise Exception("Could not load images")
-
+                    neg_signs.append(neg)
+                # else:
+                #     break
     signs = np.array(signs)
     images = np.array(images)
     labels = np.array(labels)
@@ -116,6 +129,11 @@ def load_additional_data(negative_signs, negative_labels):
 
 def load_usual_errors(errors, labels):
     for filename in glob.glob(USUAL_ERRORS_PATH + '/*.png'):
+        im = cv2.imread(filename, 0)
+        errors.append(resize(im))
+        labels.append(-1)
+
+
 def load_negative_csv(neg_rois):
     neg_signs = []
     labels = []
@@ -127,22 +145,24 @@ def load_negative_csv(neg_rois):
         for line in lines[1:]:
             cols = line.replace("\n", "").split(",")
             if "raw" in cols[2]:
-                if cols[1] == "brodarski-C" or cols[1] == "brodarski-D":
-                    try:
-                        img_left = load_img(FOLDER_PATH + cols[2])
-                        img_right = load_img(FOLDER_PATH + cols[3])
+                if cols[1] == "biograd-A" or cols[1] == "biograd-B":
+                    img_left = load_img(FOLDER_PATH + cols[2])
+                    # img_right = load_img(FOLDER_PATH + cols[3])
 
-                        neg_signs.append(resize(extract_roi(img_left, neg_rois[index])))
-                        neg_signs.append(resize(extract_roi(img_right, neg_rois[index])))
-                        labels.append(cols[5])
-                        labels.append(cols[5])
-                        # labels.append(cols[6])
+                    neg = resize(extract_roi(img_left, neg_rois[index]))
+                    if neg == []:
+                        continue
+                    neg_signs.append(neg)
+                    # neg_signs.append(resize(extract_roi(img_right, neg_rois[index])))
+                    labels.append(cols[5])
+                    # labels.append(cols[6])
 
-                        # images.append(img_left)
-                        # images.append(img_right)
-                        index += 1
-                    except:
-                        raise Exception("Could not load images")
+                    # images.append(img_left)
+                    # images.append(img_right)
+                    index += 1
+
+    # load_additional_data(neg_signs, labels)
+    # load_usual_errors(neg_signs, labels)
 
     # images = np.array(images)
     labels = np.array(labels)
