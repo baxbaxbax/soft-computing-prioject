@@ -1,80 +1,27 @@
 import load_data as ld
 import cv2
-from sklearn.model_selection import train_test_split
 import numpy as np
-from sklearn.svm import SVC
-from sklearn.metrics import accuracy_score
-import serialize
+import train_hog
+from PIL import Image
 
 
-def reshape_data(input_data):
-    nsamples, nx, ny = input_data.shape
-    return input_data.reshape((nsamples, nx * ny))
+def generate_data(rectangles):
+    for (x, y, w, h) in rectangles:
+        img = image.copy()
+        image2d = np.array(ld.extract_roi(img, [x, y, w, h]))
+        if image2d.shape[0] == 0 or image2d.shape[1] == 0:
+            continue
+        im = Image.fromarray(image2d)
+        im.save("generated_false_signs/sign" + str(index) + ".png")
+        # scipy.misc.imsave("generated_false_signs/sign" + str(index) + ".png", image2d)
+        # png.from_array(image2d, mode='L').save("generated_false_signs/sign" + str(index) + ".png")
 
-
-def hog_it(img):
-    pos_features = []
-    neg_features = []
-    labels = []
-
-    nbins = 9  # broj binova
-    cell_size = (8, 8)  # broj piksela po celiji
-    block_size = (3, 3)  # broj celija po bloku
-
-    hog = cv2.HOGDescriptor(_winSize=(img.shape[1] // cell_size[1] * cell_size[1],
-                                      img.shape[0] // cell_size[0] * cell_size[0]),
-                            _blockSize=(block_size[1] * cell_size[1],
-                                        block_size[0] * cell_size[0]),
-                            _blockStride=(cell_size[1], cell_size[0]),
-                            _cellSize=(cell_size[1], cell_size[0]),
-                            _nbins=nbins)
-
-    pos_features = []
-    neg_features = []
-    labels = []
-
-    for img in signs:
-        pos_features.append(hog.compute(img))
-        labels.append(1)
-
-    for img in neg_signs:
-        neg_features.append(hog.compute(img))
-        labels.append(0)
-
-    pos_features = np.array(pos_features)
-    neg_features = np.array(neg_features)
-    x = np.vstack((pos_features, neg_features))
-    y = np.array(labels)
-
-    return hog, x, y
-
-
-def hog_it(img):
-    pos_features = []
-
-    nbins = 9  # broj binova
-    cell_size = (8, 8)  # broj piksela po celiji
-    block_size = (3, 3)  # broj celija po bloku
-
-    hog = cv2.HOGDescriptor(_winSize=(img.shape[1] // cell_size[1] * cell_size[1],
-                                      img.shape[0] // cell_size[0] * cell_size[0]),
-                            _blockSize=(block_size[1] * cell_size[1],
-                                        block_size[0] * cell_size[0]),
-                            _blockStride=(cell_size[1], cell_size[0]),
-                            _cellSize=(cell_size[1], cell_size[0]),
-                            _nbins=nbins)
-
-    pos_features = []
-
-    for img in signs:
-        pos_features.append(hog.compute(img))
-
-    pos_features = np.array(pos_features)
-
-    x = np.array(pos_features)
-    y = np.array(pos_labels)
-
-    return hog, x, y
+def crop_image(input_image, output_image, start_x, start_y, width, height):
+    """Pass input name image, output name image, x coordinate to start croping, y coordinate to start croping, width to crop, height to crop """
+    input_img = Image.open(input_image)
+    box = (start_x, start_y, start_x + width, start_y + height)
+    output_img = input_img.crop(box)
+    output_img.save(output_image +".png")
 
 
 def non_max_suppression_fast(boxes, overlapThresh):
@@ -120,75 +67,23 @@ signs, pos_labels, neg_rois, images = ld.load_positive_csv()
 neg_labels, neg_signs = ld.load_negative_csv(neg_rois)
 
 # hog for hand or not
-hog, x, y = hog_it(signs[0])
-
-x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=42)
-
-x_train = reshape_data(x_train)
-x_test = reshape_data(x_test)
-
-print('Train shape: ', x_train.shape, y_train.shape)
-print('Test shape: ', x_test.shape, y_test.shape)
-
-yesno_svm = serialize.load_trained_svm("yesno")
-
-# ako je ann=None, znaci da model nije ucitan u prethodnoj metodi i da je potrebno istrenirati novu mrezu
-if yesno_svm is None:
-    print("Training model")
-    yesno_svm = SVC(kernel='linear', probability=True)
-    yesno_svm.fit(x_train, y_train)
-    # clf_svm = LinearSVC()
-    # clf_svm.fit(x_train, y_train)
-    serialize.serialize_svm(yesno_svm, "yesno")
-else:
-    print("Model loaded")
-
-y_train_pred = yesno_svm.predict(x_train)
-y_test_pred = yesno_svm.predict(x_test)
-print("Train accuracy: ", accuracy_score(y_train, y_train_pred))
-print("Validation accuracy: ", accuracy_score(y_test, y_test_pred))
+svm, x, y, hog = train_hog.hog_it(signs[0], signs, neg_signs)
 
 # hog for signs
-hog_signs, x_signs, y_signs = hog_it(signs[0])
+svm_signs, x_signs, y_signs = train_hog.hog_signs(signs[0], signs, pos_labels)
 
-x_train, x_test, y_train, y_test = train_test_split(x_signs, y_signs, test_size=0.2, random_state=42)
-x_train = reshape_data(x_train)
-x_test = reshape_data(x_test)
-
-print('Train shape: ', x_train.shape, y_train.shape)
-print('Test shape: ', x_test.shape, y_test.shape)
-
-signs_svm = serialize.load_trained_svm("signs")
-
-# ako je ann=None, znaci da model nije ucitan u prethodnoj metodi i da je potrebno istrenirati novu mrezu
-if signs_svm is None:
-    print("Training model")
-    signs_svm = SVC(kernel='linear', probability=True)
-    signs_svm.fit(x_train, y_train)
-    # clf_svm = LinearSVC()
-    # clf_svm.fit(x_train, y_train)
-    serialize.serialize_svm(signs_svm, "signs")
-else:
-    print("Model loaded")
-
-y_train_pred = signs_svm.predict(x_train)
-y_test_pred = signs_svm.predict(x_test)
-print("Train accuracy: ", accuracy_score(y_train, y_train_pred))
-print("Validation accuracy: ", accuracy_score(y_test, y_test_pred))
-
-
-for image in images:
-    detections = [[0, 0, 0, 0, "DRUGI"]]  # x_min, y_min, x_max, y_max, tip znaka
+for index, image in enumerate(images):
 
     nbins = 9  # broj binova
     cell_size = (8, 8)  # broj piksela po celiji
     block_size = (3, 3)  # broj celija po bloku
 
-    hog.setSVMDetector(yesno_svm)
+    hog.setSVMDetector(svm.coef_)
     (rects, weights) = hog.detectMultiScale(image)
     rects = non_max_suppression_fast(rects, 0.3)
 
     # draw the original bounding boxes
     for (x, y, w, h) in rects:
         cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 4)
+
     ld.preview_img(image)
