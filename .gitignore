@@ -132,6 +132,7 @@ dmypy.json
 # dataset
 *.jpeg
 *.jpg
+*.png
 *.csv
 
 # Created by https://www.gitignore.io/api/pycharm,pycharm+iml,pycharm+all
